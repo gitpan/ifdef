@@ -3,7 +3,7 @@ package ifdef;
 # Make sure we have version info for this module
 # Be strict from now on
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 use strict;
 
 # The flag to take all =begin CAPITALS pod sections
@@ -150,9 +150,9 @@ sub oneline {
 #     Reset that we're inside normal pod flag
 
         } elsif ($1 eq 'begin') {
-            if (m#^=begin\s+([A-Z_0-9]+)#) {
+            if (m#^=begin\s+([A-Z_0-9]+)\b#) {
                 if ($ALL or $ENV{$1}) {
-                    $_ = $ACTIVATING ? "}{$/" : "{$/";
+                    $_ = $ACTIVATING ? "}{$/" : "{;$/";
                     $ACTIVATING = 1;
                     $INPOD = 0;
 
@@ -204,8 +204,8 @@ sub oneline {
 # Elseif (inside code) and looks like a comment line that we need to handle
 #  Make it a normal source line if we should
 
-    } elsif (m/^#\s+([A-Z_0-9]+)/) {
-         s/^#\s+([A-Z_0-9]+)// if $ALL or $ENV{$1};
+    } elsif (m/^#\s+([A-Z_0-9]+)\b/) {
+         s/^#\s+(?:[A-Z_0-9]+)\b// if $ENV{$1};
     }
 
 # Let the world know if we should
@@ -235,6 +235,8 @@ sub import {
 # Loop for all parameters
 #  If it is the "all" flag
 #   Set the all flag
+#  Elsif it is the "selected" flag
+#   Reset the all flag
 #  Elsif it is all uppercase
 #   Set the environment variable
 #  Else
@@ -246,6 +248,8 @@ sub import {
     foreach (@_) {
         if (m#^:?all$#) {
             $ALL = 1;
+        } elsif (m#^:?selected$#) {
+            $ALL = 0;
         } elsif (/^[A-Z_0-9]+$/) {
             $ENV{$_} = 1;
         } else {
@@ -308,7 +312,7 @@ ifdef - conditionally enable text within pod sections as code
 
   # code that's always compiled and executed
 
-  # BEGINNING compiled and executed when DEBUGGING or 'all' enabled
+  # BEGINNING compiled and executed when BEGINNING enabled
 
   ======================================================================
 
@@ -360,7 +364,10 @@ line of code inside a commented line:
  # DEBUGGING print "we're in debugging mode now\n";
 
 will only print the string "we're in debugging mode now\n" when the environment
-variable B<DEBUGGING> is set (or of course the 'all' switch is set).
+variable B<DEBUGGING> is set.  Please note that the 'all' flag is ignored in
+this case, as there is too much standard code out there that uses all uppercase
+markers at the beginning of an inline comment which cause compile errors if
+they would be enabled.
 
 =head1 WHY?
 
@@ -462,6 +469,9 @@ See L</"process"> of you want to a string consisting of many lines in one go.
 =head1 CREDITS
 
 Nick Kostirya for the idea of activating single line comments.
+
+Konstantin Tokar for pointing out problems with empty code code blocks and
+inline comments when the "all" flag was specified.  And providing patches!
 
 =head1 AUTHOR
 

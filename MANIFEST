@@ -9,4 +9,5 @@ t/ifdef01.t
 t/ifdef02.t
 t/ifdef03.t
 t/ifdef04.t
+t/ifdef05.t
 META.yml                                 Module meta-data (added by MakeMaker)

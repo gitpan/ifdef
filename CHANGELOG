@@ -1,3 +1,11 @@
+0.05	13 March 2004
+	Added patches submitted by Konstantin Tokar.  Fixes problem with empty
+	code blocks.  Removed using the "all" flag for inline comments: there's
+	just too much code out there that would be activated unintentionally.
+
+	Made checks for activation triggers a little more strict by adding a
+	word boundary check at the end.  
+
 0.04	5 March 2004
 	Added functionality for doing one line activating comments.  Idea
 	courtesy of Nick Kostirya.  Added documentation for it and some extra

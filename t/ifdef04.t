@@ -83,7 +83,7 @@ print "before sections: $foo\n";
 
 
 
-{
+{;
 
 my $foo = 'bar';
 print "within debugging: $foo\n";
@@ -115,7 +115,7 @@ print "before sections: $foo\n";
 
 
 
-{
+{;
 
 my $foo = 'bar';
 print "within debugging: $foo\n";
@@ -151,7 +151,7 @@ print "before sections: $foo\n";
 
 
 
-{
+{;
 
 my $foo = 'baz';
 print "within verbose: $foo\n";
