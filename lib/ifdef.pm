@@ -3,7 +3,7 @@ package ifdef;
 # Make sure we have version info for this module
 # Be strict from now on
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 use strict;
 
 # The flag to take all =begin CAPITALS pod sections
@@ -28,39 +28,54 @@ my $INPOD;
 
 # Flag: depth of conditionals
 # Flags: state of each level
+# Module -> filename conversion hash
 
 my $DEPTH;
 my @STATE;
+my %IFDEF;
 
 # Install an @INC handler that
-# Obtains the parameters (defining $path on the fly)
-# For all of the directories to checl
-#  If we have a reference
-#   Let that handle the require if we're not it
+#  Obtains the parameters (defining $path on the fly)
+#  If there is a request to translate a module to a filename
+#   Make sure the delimiters are ok
+#   Return whatever we know of this module
 
 unshift( @INC,sub {
     my ($ref,$filename,$path) = @_;
+    unless (ref $ref) {
+        $ref =~ s#/#::#;
+        return $IFDEF{$ref};
+    }
+
+#  For all of the directories to checl
+#   If we have a reference
+#    Let that handle the require if we're not it
+
     foreach (@INC) {
         if (ref) {
             goto &$_ unless $_ eq $ref;
 
-#  Elseif the file exists
-#   Attempts to open the file and reloops if failed
-#   Attempt to open a temporary file or dies if failed
+#   Elseif the file exists
+#    Attempts to open the file and reloops if failed
+#    Attempt to open a temporary file or dies if failed
+#    Convert filename to module name again
+#    Save path for this module (in case someone needs it later)
 
         } elsif (-f ($path = "$_/$filename")) {
             open( my $in,$path ) or next;
             my $out = IO::File->new_tmpfile
              or die "Failed to create temporry file for '$path': $!\n";
+            $filename =~ s#/#::#;
+            $IFDEF{$filename} = $path;
 
-#   Make sure we have our own $_
-#   While there are lines to be read
-#    Process the line
-#    Write the line to the temporary file
-#   Close the input file
-#   Make sure we have a clean slate from now
+#    Make sure we have our own $_
+#    While there are lines to be read
+#     Process the line
+#     Write the line to the temporary file
+#    Close the input file
+#    Make sure we have a clean slate from now
 
-            local $_;
+            local $_ = \my $foo;
             while (<$in>) {
                 &oneline;
                 print $out $_;
@@ -68,8 +83,8 @@ unshift( @INC,sub {
             close $in;
             &reset;
 
-#   Make sure we'll read from the original file again
-#   And return that handle
+#    Make sure we'll read from the start of the file
+#    And return that handle
 
             $out->seek( 0,0 ) or die "Failed to seek: $!\n";
             return $out;
@@ -103,7 +118,7 @@ sub process {
 
     my @line = split m#(?<=$/)#,$_[0];
     &reset;
-    local $_;
+    local $_ = \my $foo;
     &oneline foreach @line;
     return join( '',@line ) if defined wantarray;
 

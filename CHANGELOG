@@ -1,3 +1,10 @@
+0.06	14 March 2004
+	Added further support needed for external autoloaders: specifically
+	you can now call the "ifdef" code reference stored in @INC with a
+	single parameter (module name) to obtain the underlying absolute path
+	from which the module was actually loaded.  This was needed to support
+	"load.pm".  Added some tests for this here as well.
+
 0.05	13 March 2004
 	Added patches submitted by Konstantin Tokar.  Fixes problem with empty
 	code blocks.  Removed using the "all" flag for inline comments: there's
