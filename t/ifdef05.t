@@ -21,6 +21,8 @@ my $original = <<'EOD';
 =begin FOObar
 
 =cut
+
+=begin DEBUGGING
 EOD
 
 foreach my $prefix ('',':') {
@@ -35,6 +37,9 @@ foreach my $prefix ('',':') {
 
 
 
+
+{;
+}
 EOD
 
     ifdef->import( '_testing_', $prefix.'selected' );
@@ -44,6 +49,8 @@ EOD
 
 
 # XXX This line needs to be fixed
+
+
 
 
 

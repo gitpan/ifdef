@@ -3,7 +3,7 @@ package ifdef;
 # Make sure we have version info for this module
 # Be strict from now on
 
-$VERSION = '0.06';
+$VERSION = '0.07';
 use strict;
 
 # The flag to take all =begin CAPITALS pod sections
@@ -114,12 +114,14 @@ sub process {
 # Start with a clean slate
 # Make sure we don't affect $_ outside
 # Process all lines
+# Close of activating section (e.g. when called by "load")
 # Return the result if not in void context
 
     my @line = split m#(?<=$/)#,$_[0];
     &reset;
     local $_ = \my $foo;
     &oneline foreach @line;
+    push @line,"}$/" if $ACTIVATING;
     return join( '',@line ) if defined wantarray;
 
 # Set the result directly
@@ -480,6 +482,14 @@ processed line will be stored in B<$_> as well.  So there are no input or
 output parameters.
 
 See L</"process"> of you want to a string consisting of many lines in one go.
+
+=head1 MODULE RATING
+
+If you want to find out how this module is appreciated by other people, please
+check out this module's rating at L<http://cpanratings.perl.org/i/ifdef> (if
+there are any ratings for this module).  If you like this module, or otherwise
+would like to have your opinion known, you can add your rating of this module
+at L<http://cpanratings.perl.org/rate/?distribution=ifdef>.
 
 =head1 CREDITS
 
