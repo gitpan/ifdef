@@ -7,7 +7,7 @@ eval "use Devel::Required";
 WriteMakefile (
  NAME		=> "ifdef",
  AUTHOR		=> 'Elizabeth Mattijsen (liz@dijkmat.nl)',
- ABSTRACT	=> 'conditionally enable text as code within pod sections',
+ ABSTRACT	=> 'conditionally enable text within pod sections as code',
  VERSION_FROM	=> 'lib/ifdef.pm',
 
  PREREQ_PM	=> {qw(

@@ -3,7 +3,7 @@ package ifdef;
 # Make sure we have version info for this module
 # Be strict from now on
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 use strict;
 
 # The flag to take all =begin CAPITALS pod sections
@@ -128,12 +128,26 @@ sub reset { $ACTIVATING = $INPOD = $DEPTH = 0 } #reset
 
 sub oneline {
 
+# Let the world know if we should
+
     print STDERR "<$_" if $DIFF;
+
+# If this is a pod marker
+#  If we're going back to source
+#   Close the scope if we were activating code
+#   Reset all parameters
 
     if (m#^=(\w+)#){
         if ($1 eq 'cut') {
             $_ = $ACTIVATING ? "}$/" : $/;
             &reset;
+
+#  Elseif we're at the start of possibly activating source
+#   If this is a pod marker that seems to have our special meaning
+#    If global activation or this specific one
+#     Open new scope (possibly closing old one)
+#     Set activating flag
+#     Reset that we're inside normal pod flag
 
         } elsif ($1 eq 'begin') {
             if (m#^=begin\s+([A-Z_0-9]+)#) {
@@ -141,29 +155,60 @@ sub oneline {
                     $_ = $ACTIVATING ? "}{$/" : "{$/";
                     $ACTIVATING = 1;
                     $INPOD = 0;
+
+#    Else (not activating this time)
+#     Close scope if we were activated already
+#     Reset acticating flag
+#     Set flag that we're inside normal pod now
+
                 } else {
                     $_ = $ACTIVATING ? "}$/" : $/;
                     $ACTIVATING = 0;
                     $INPOD = 1;
                 }
+
+#   Else (normal begin of pod)
+#    Lose the line
+#    Set flag that we're inside normal pod now
+
             } else {
                 $_ = $/;
                 $INPOD = 1;
             }
+
+#  Elseif we're at the end of a possible activating section
+#   Close scope if we we're activating
+#   Reset activating flag
+#   Set flag that we're in normal pod now
 
         } elsif ($1 eq 'end') {
             $_ = $ACTIVATING ? "}$/" : $/;
             $ACTIVATING = 0;
             $INPOD = 1;
 
+#  Else (any other pod directive)
+#   Reset the line
+#   Set flag that we're in normal pod now
+
         } else {
             $_ = $/;
             $INPOD = 1;
         }
 
+# Elseif we're already inside normal pod
+#  Lose the line
+
     } elsif ($INPOD) {
         $_ = $/;
+
+# Elseif (inside code) and looks like a comment line that we need to handle
+#  Make it a normal source line if we should
+
+    } elsif (m/^#\s+([A-Z_0-9]+)/) {
+         s/^#\s+([A-Z_0-9]+)// if $ALL or $ENV{$1};
     }
+
+# Let the world know if we should
 
     print STDERR ">$_" if $DIFF;
 } #oneline
@@ -230,7 +275,7 @@ __END__
 
 =head1 NAME
 
-ifdef - conditionally enable text as code within pod sections
+ifdef - conditionally enable text within pod sections as code
 
 =head1 SYNOPSIS
 
@@ -262,6 +307,8 @@ ifdef - conditionally enable text as code within pod sections
   =cut
 
   # code that's always compiled and executed
+
+  # BEGINNING compiled and executed when DEBUGGING or 'all' enabled
 
   ======================================================================
 
@@ -307,6 +354,14 @@ is converted on the fly (before Perl compiles it) to:
 But of course, this happens B<only> if the "ifdef" pragma is loaded B<and>
 the environment variable B<DEBUGGING> is set.
 
+As a shortcut for only single lines of code, you can also specify a single
+line of code inside a commented line:
+
+ # DEBUGGING print "we're in debugging mode now\n";
+
+will only print the string "we're in debugging mode now\n" when the environment
+variable B<DEBUGGING> is set (or of course the 'all' switch is set).
+
 =head1 WHY?
 
 One day, I finally had enough of always putting in and taking out debug
@@ -350,6 +405,11 @@ activate.
 For the moment, these modules bypass the mechanism of this module.  An
 interface with load.pm is on the TODO list.  Patches for other autoloading
 modules are welcomed.
+
+=head2 Doesn't seem to work on mod_perl
+
+Unfortunately, there still seem to be problems with getting this moduled to
+work reliably under mod_perl.
 
 =head2 API FOR AUTOLOADING MODULES
 
@@ -398,6 +458,10 @@ processed line will be stored in B<$_> as well.  So there are no input or
 output parameters.
 
 See L</"process"> of you want to a string consisting of many lines in one go.
+
+=head1 CREDITS
+
+Nick Kostirya for the idea of activating single line comments.
 
 =head1 AUTHOR
 

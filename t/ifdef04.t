@@ -35,6 +35,9 @@ print "within verbose: $foo\n";
 More foo documentation
 
 =cut
+
+# DEBUGGING print "we're debugging now\n";
+
 print "after sections: $foo\n";
 EOD
 
@@ -62,6 +65,9 @@ print "before sections: $foo\n";
 
 
 
+
+
+# DEBUGGING print "we're debugging now\n";
 
 print "after sections: $foo\n";
 EOD
@@ -92,6 +98,9 @@ print "within debugging: $foo\n";
 
 
 
+
+ print "we're debugging now\n";
+
 print "after sections: $foo\n";
 EOD
 }
@@ -121,6 +130,9 @@ print "within verbose: $foo\n";
 
 
 
+
+ print "we're debugging now\n";
+
 print "after sections: $foo\n";
 EOD
 
@@ -148,6 +160,9 @@ print "within verbose: $foo\n";
 
 
 
+
+
+# DEBUGGING print "we're debugging now\n";
 
 print "after sections: $foo\n";
 EOD

@@ -80,6 +80,7 @@ do_tests();
 #**********************************
 
 is( unlink( qw(script Foo.pm) ),'2',"Check unlinking of temp files" );
+1 while unlink qw(script Foo.pm); # multi-versioned file systems
 
 #-------------------------------------------------------------------------
 sub do_tests {

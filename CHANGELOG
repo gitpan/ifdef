@@ -1,3 +1,11 @@
+0.04	5 March 2004
+	Added functionality for doing one line activating comments.  Idea
+	courtesy of Nick Kostirya.  Added documentation for it and some extra
+	tests.
+
+	28 January 2004
+	Made sure test-suite cleans up even on multi-versioned systems.
+
 0.03	25 January 2004
 	Moved the conversion logic to a subroutine.  It will have some effect
 	on performance at the expense of better maintainability.  Sorry guys.
