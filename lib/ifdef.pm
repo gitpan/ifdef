@@ -1,0 +1,414 @@
+package ifdef;
+
+# Make sure we have version info for this module
+# Be strict from now on
+
+$VERSION = '0.03';
+use strict;
+
+# The flag to take all =begin CAPITALS pod sections
+# Flag: set to true to output all source to be output as diff to STDERR
+
+my $ALL;
+my $DIFF = $ENV{'IFDEF_DIFF'};
+
+# Get the necessary modules
+
+use IO::File ();
+
+# Use a source filter for the initial script
+# Status as returned by source filter
+# Flag: whether we're inside a =begin section being activated
+# Flag: whether we're inside any =pod section
+
+use Filter::Util::Call ();
+my $STATUS;
+my $ACTIVATING;
+my $INPOD;
+
+# Flag: depth of conditionals
+# Flags: state of each level
+
+my $DEPTH;
+my @STATE;
+
+# Install an @INC handler that
+# Obtains the parameters (defining $path on the fly)
+# For all of the directories to checl
+#  If we have a reference
+#   Let that handle the require if we're not it
+
+unshift( @INC,sub {
+    my ($ref,$filename,$path) = @_;
+    foreach (@INC) {
+        if (ref) {
+            goto &$_ unless $_ eq $ref;
+
+#  Elseif the file exists
+#   Attempts to open the file and reloops if failed
+#   Attempt to open a temporary file or dies if failed
+
+        } elsif (-f ($path = "$_/$filename")) {
+            open( my $in,$path ) or next;
+            my $out = IO::File->new_tmpfile
+             or die "Failed to create temporry file for '$path': $!\n";
+
+#   Make sure we have our own $_
+#   While there are lines to be read
+#    Process the line
+#    Write the line to the temporary file
+#   Close the input file
+#   Make sure we have a clean slate from now
+
+            local $_;
+            while (<$in>) {
+                &oneline;
+                print $out $_;
+            }
+            close $in;
+            &reset;
+
+#   Make sure we'll read from the original file again
+#   And return that handle
+
+            $out->seek( 0,0 ) or die "Failed to seek: $!\n";
+            return $out;
+        }
+    }
+
+# Return nothing to indicate that the rest should be searched (which will fail)
+
+    return;
+} );
+
+# Satisfy require
+
+1;
+
+#---------------------------------------------------------------------------
+# process
+#
+# Process a string (consisting of many lines)
+#
+#  IN: 1 string to process
+# OUT: 1 processed string (in place change if called in void context)
+
+sub process {
+
+# Get lines from the string
+# Start with a clean slate
+# Make sure we don't affect $_ outside
+# Process all lines
+# Return the result if not in void context
+
+    my @line = split m#(?<=$/)#,$_[0];
+    &reset;
+    local $_;
+    &oneline foreach @line;
+    return join( '',@line ) if defined wantarray;
+
+# Set the result directly
+# Hint to the compiler we're not returning anything (optimilization)
+
+    $_[0] = join( '',@line );
+    undef;
+} #process
+
+#---------------------------------------------------------------------------
+# reset
+#
+# Reset all internal variables to a known state
+
+sub reset { $ACTIVATING = $INPOD = $DEPTH = 0 } #reset
+
+#---------------------------------------------------------------------------
+# oneline
+#
+# Process one line in $_ in place
+
+sub oneline {
+
+    print STDERR "<$_" if $DIFF;
+
+    if (m#^=(\w+)#){
+        if ($1 eq 'cut') {
+            $_ = $ACTIVATING ? "}$/" : $/;
+            &reset;
+
+        } elsif ($1 eq 'begin') {
+            if (m#^=begin\s+([A-Z_0-9]+)#) {
+                if ($ALL or $ENV{$1}) {
+                    $_ = $ACTIVATING ? "}{$/" : "{$/";
+                    $ACTIVATING = 1;
+                    $INPOD = 0;
+                } else {
+                    $_ = $ACTIVATING ? "}$/" : $/;
+                    $ACTIVATING = 0;
+                    $INPOD = 1;
+                }
+            } else {
+                $_ = $/;
+                $INPOD = 1;
+            }
+
+        } elsif ($1 eq 'end') {
+            $_ = $ACTIVATING ? "}$/" : $/;
+            $ACTIVATING = 0;
+            $INPOD = 1;
+
+        } else {
+            $_ = $/;
+            $INPOD = 1;
+        }
+
+    } elsif ($INPOD) {
+        $_ = $/;
+    }
+
+    print STDERR ">$_" if $DIFF;
+} #oneline
+
+#---------------------------------------------------------------------------
+
+# Perl specific subroutines
+
+#---------------------------------------------------------------------------
+#  IN: 1 class (ignored)
+#      2..N keys to watch for
+
+sub import {
+
+# Warn if we're being called from source (unless it's from the test-suite)
+
+    warn "The '".
+          __PACKAGE__.
+          "' pragma is not supposed to be called from source\n"
+           if ((caller)[2]) and ($_[0] ne '_testing_' and !shift);
+
+# Lose the class
+# Initialize the ignored list
+# Loop for all parameters
+#  If it is the "all" flag
+#   Set the all flag
+#  Elsif it is all uppercase
+#   Set the environment variable
+#  Else
+#   Add to ignored list
+# List any ignored parameters
+
+    shift;
+    my @ignored;
+    foreach (@_) {
+        if (m#^:?all$#) {
+            $ALL = 1;
+        } elsif (/^[A-Z_0-9]+$/) {
+            $ENV{$_} = 1;
+        } else {
+            push @ignored,$_;
+        }
+    }
+    warn "Ignored parameters: @ignored\n" if @ignored;
+
+# Make sure we start with a clean slate
+# Add a filter for the caller script which
+#  If there is a line
+#   Process it
+#  Returns the status, $_ is set with what we want to give back
+
+    &reset;
+    Filter::Util::Call::filter_add( sub {
+        if (($STATUS = Filter::Util::Call::filter_read()) > 0) {
+            &oneline;
+        }
+        $STATUS;
+    } );
+} #import
+
+#---------------------------------------------------------------------------
+
+__END__
+
+=head1 NAME
+
+ifdef - conditionally enable text as code within pod sections
+
+=head1 SYNOPSIS
+
+  export DEBUGGING=1
+  perl -Mifdef yourscript.pl
+
+ or:
+
+  perl -Mifdef=VERBOSE yourscript.pl
+
+ or:
+
+  perl -Mifdef=all yourscript.pl
+
+ with:
+
+  ======= yourscript.pl ================================================
+
+  # code that's always compiled and executed
+
+  =begin DEBUGGING
+
+  warn "Only compiled and executed when DEBUGGING or 'all' enabled\n"
+
+  =begin VERBOSE
+
+  warn "Only compiled and executed when VERBOSE or 'all' enabled\n"
+
+  =cut
+
+  # code that's always compiled and executed
+
+  ======================================================================
+
+=head1 DESCRIPTION
+
+The "ifdef" pragma allows a developer to add sections of code that will be
+compiled and executed only when the "ifdef" pragma is specifically enabled.
+If the "ifdef" pragma is not enabled, then there is B<no> overhead involved
+in either compilation of execution (other than the standard overhead of Perl
+skipping =pod sections).
+
+To prevent interference with other pod handlers, the name of the pod handler
+B<must> be in uppercase.
+
+If a =begin pod section is considered for replacement, then a scope is
+created around that pod section so that there is no interference with any
+of the code around it.  For example:
+
+ my $foo = 2;
+
+ =begin DEBUGGING
+
+ my $foo = 1;
+ warn "debug foo = $foo\n";
+
+ =cut
+
+ warn "normal foo = $foo\n";
+
+is converted on the fly (before Perl compiles it) to:
+
+ my $foo = 2;
+
+ {
+
+ my $foo = 1;
+ warn "foo = $foo\n";
+
+ }
+
+ warn "normal foo = $foo\n";
+
+But of course, this happens B<only> if the "ifdef" pragma is loaded B<and>
+the environment variable B<DEBUGGING> is set.
+
+=head1 WHY?
+
+One day, I finally had enough of always putting in and taking out debug
+statements from modules I was developing.  I figured there had to be a
+better way to do this.  Now, this module allows to leave debugging code
+inside your programs and only have them come alive when I<you> want them
+to be alive.  I<Without any run-time penalties when you're in production>.
+
+=head1 REQUIRED MODULES
+
+ Filter::Util::Call (any)
+ IO::File (any)
+
+=head1 IMPLEMENTATION
+
+This version is completely written in Perl.  It uses a source filter to
+provide its magic to the script being run B<and> an @INC handler for all
+of the modules that are loaded otherwise.  Because the pod directives are
+ignored by Perl during normal compilation, the source filter is B<not> needed
+for production use so there will be B<no> performance penalty in that case.
+
+=head1 CAVEATS
+
+=head2 Overhead during development
+
+Because the "ifdef" pragma uses a source filter for the invoked script, and
+an @INC handler for all further required files, there is an inherent overhead
+for compiling Perl source code.  Not loading ifdef.pm at all, causes the normal
+pod section ignoring functionality of Perl to come in place (without any added
+overhead).
+
+=head2 No changing of environment variables during execution
+
+Since the "ifdef" pragma performs all of this magic at compile time, it
+generally does not make sense to change the values of applicable environment
+variables at execution, as there will be no compiled code available to
+activate.
+
+=head2 Modules that use AutoLoader, SelfLoader, load, etc.
+
+For the moment, these modules bypass the mechanism of this module.  An
+interface with load.pm is on the TODO list.  Patches for other autoloading
+modules are welcomed.
+
+=head2 API FOR AUTOLOADING MODULES
+
+The following subroutines are available for doing your own processing, e.g.
+for inclusion in your own AUTOLOADing modules.  The subroutines are B<not>
+exported: if you want to use them in your own namespace, you will need to
+import them yourself thusly:
+
+ *myprocess = \&ifdef::process;
+
+would import the "ifdef::process" subroutine as "myprocess" in your namespace..
+
+=head3 process
+
+ ifdef::process( $direct );
+
+ $processed = ifdef::process( $original );
+
+The "process" subroutine allows you process a given string of source code
+and have it processed in the same manner as which the source filter / @INC
+handler of "ifdef.pm" would do.
+
+There are two modes of calling: if called in a void context, it will process
+the string and put the result in place.  An alternate method allows you to
+keep a copy: if called in scalar or list context, the processed string will
+be returned.
+
+See L</"oneline"> of you want to process line by line.
+
+=head3 reset
+
+ &ifdef::reset;
+
+The "reset" subroutine is needed only if you're doing your own processing with
+the L</"oneline"> subroutine.  It resets the internal variables so that no
+state of previous calls to L</"process"> (or the internally called source
+filter or @INC handler) will remain.
+
+=head3 oneline
+
+ &ifdef::oneline;
+
+The "oneline" subroutine does just that: it process a single line of source
+code.  The line of source to be processed is expected to be in B<$_>.  The
+processed line will be stored in B<$_> as well.  So there are no input or
+output parameters.
+
+See L</"process"> of you want to a string consisting of many lines in one go.
+
+=head1 AUTHOR
+
+Elizabeth Mattijsen, <liz@dijkmat.nl>.
+
+Please report bugs to <perlbugs@dijkmat.nl>.
+
+=head1 COPYRIGHT
+
+Copyright (c) 2004 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
+reserved.  This program is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
+
+=cut

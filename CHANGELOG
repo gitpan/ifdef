@@ -1,0 +1,25 @@
+0.03	25 January 2004
+	Moved the conversion logic to a subroutine.  It will have some effect
+	on performance at the expense of better maintainability.  Sorry guys.
+	This should allow for a more extensive functionality.
+
+	Added an official API for AUTOLOADing modules: the "process", "reset"
+	and "oneline" subroutines.
+
+	Changed name to "ifdef" after a discussion on Perl Monks.  Seemed
+	more in line with what it does.
+
+	Fixed several issues, particularly with =end and extra =pod sections.
+	Thanks to Perl Monks Mr. Muskrat and dbwiz for pointing this out.
+
+0.02	24 January 2004
+	You figure you have a nice test-suite.  But then you miss that each
+	module loaded clears out the associated @INC entry  ;-(  Fixed now.
+	Extra test now added.
+
+	Added some more documentation.  Fixed problem with newlines being
+	lost if there was a match on =begin WWWWW but without the code
+	actually being activated.
+
+0.01	24 January 2004
+	First public version of begin.pm.
