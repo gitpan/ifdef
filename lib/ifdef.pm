@@ -1,103 +1,82 @@
 package ifdef;
 
-# Make sure we have version info for this module
-# Be strict from now on
+$VERSION= '0.08';
 
-$VERSION = '0.07';
+# be strict from now on
 use strict;
 
-# The flag to take all =begin CAPITALS pod sections
-# Flag: set to true to output all source to be output as diff to STDERR
-
+# take all =begin CAPITALS pod sections
 my $ALL;
-my $DIFF = $ENV{'IFDEF_DIFF'};
 
-# Get the necessary modules
+# output all source to be output as diff to STDERR
+BEGIN {
+    my $diff= $ENV{'IFDEF_DIFF'} || 0;
+    eval "sub DIFF () { $diff }";
+} #BEGIN
 
+# get the necessary modules
 use IO::File ();
 
-# Use a source filter for the initial script
-# Status as returned by source filter
-# Flag: whether we're inside a =begin section being activated
-# Flag: whether we're inside any =pod section
-
+# set up source filter for the initial script
 use Filter::Util::Call ();
-my $STATUS;
-my $ACTIVATING;
-my $INPOD;
 
-# Flag: depth of conditionals
-# Flags: state of each level
-# Module -> filename conversion hash
+# initializations
+my $STATUS;     # status as returned by source filter
+my $ACTIVATING; # whether we're inside a =begin section being activated
+my $INPOD;      # whether we're inside any =pod section
+my $DEPTH;      # depth of conditionals
+my @STATE;      # state of each level
+my %IFDEF;      # filename conversion hash
 
-my $DEPTH;
-my @STATE;
-my %IFDEF;
+# install an @INC handler
+unshift( @INC, sub {
+    my ( $ref, $filename, $path )= @_;
 
-# Install an @INC handler that
-#  Obtains the parameters (defining $path on the fly)
-#  If there is a request to translate a module to a filename
-#   Make sure the delimiters are ok
-#   Return whatever we know of this module
-
-unshift( @INC,sub {
-    my ($ref,$filename,$path) = @_;
-    unless (ref $ref) {
+    # return what we know of this module
+    if ( !ref $ref ) {
         $ref =~ s#/#::#;
         return $IFDEF{$ref};
     }
 
-#  For all of the directories to checl
-#   If we have a reference
-#    Let that handle the require if we're not it
-
+    # check all directories and handlers
     foreach (@INC) {
+
+        # let that INC handle do it if it is an INC handle and it's not us
         if (ref) {
             goto &$_ unless $_ eq $ref;
+        }
 
-#   Elseif the file exists
-#    Attempts to open the file and reloops if failed
-#    Attempt to open a temporary file or dies if failed
-#    Convert filename to module name again
-#    Save path for this module (in case someone needs it later)
+        # we found the file
+        elsif ( -f ( $path= "$_/$filename" ) ) {
 
-        } elsif (-f ($path = "$_/$filename")) {
-            open( my $in,$path ) or next;
-            my $out = IO::File->new_tmpfile
-             or die "Failed to create temporry file for '$path': $!\n";
+            # create temp file
+            open( my $in, $path ) or next;
+            my $out= IO::File->new_tmpfile
+              or die "Failed to create temporary file for '$path': $!\n";
             $filename =~ s#/#::#;
-            $IFDEF{$filename} = $path;
+            $IFDEF{$filename}= $path;
 
-#    Make sure we have our own $_
-#    While there are lines to be read
-#     Process the line
-#     Write the line to the temporary file
-#    Close the input file
-#    Make sure we have a clean slate from now
-
-            local $_ = \my $foo;
-            while (<$in>) {
+            # process all lines
+            local $_= \my $foo; # current state of localizing $_ ?
+            while ( readline $in ) {
                 &oneline;
                 print $out $_;
             }
             close $in;
             &reset;
 
-#    Make sure we'll read from the start of the file
-#    And return that handle
+            # make sure we start reading from start again
+            $out->seek( 0, 0 ) or die "Failed to seek: $!\n";
 
-            $out->seek( 0,0 ) or die "Failed to seek: $!\n";
             return $out;
         }
     }
 
-# Return nothing to indicate that the rest should be searched (which will fail)
-
+    # indicate that the rest should be searched (which will fail)
     return;
 } );
 
-# Satisfy require
-
+# satisfy require
 1;
 
 #---------------------------------------------------------------------------
@@ -110,25 +89,22 @@ unshift( @INC,sub {
 
 sub process {
 
-# Get lines from the string
-# Start with a clean slate
-# Make sure we don't affect $_ outside
-# Process all lines
-# Close of activating section (e.g. when called by "load")
-# Return the result if not in void context
-
-    my @line = split m#(?<=$/)#,$_[0];
+    # process all lines
+    my @line= split m#(?<=$/)#, $_[0];
     &reset;
-    local $_ = \my $foo;
+    local $_= \my $foo;
     &oneline foreach @line;
+
+    # close of activating section (e.g. when called by "load")
     push @line,"}$/" if $ACTIVATING;
-    return join( '',@line ) if defined wantarray;
 
-# Set the result directly
-# Hint to the compiler we're not returning anything (optimilization)
+    # return if not in void context
+    return join( '', @line ) if defined wantarray;
 
-    $_[0] = join( '',@line );
-    undef;
+    # change in place
+    $_[0]= join( '',@line );
+
+    return undef;
 } #process
 
 #---------------------------------------------------------------------------
@@ -136,7 +112,7 @@ sub process {
 #
 # Reset all internal variables to a known state
 
-sub reset { $ACTIVATING = $INPOD = $DEPTH = 0 } #reset
+sub reset { $ACTIVATING= $INPOD= $DEPTH= 0 } #reset
 
 #---------------------------------------------------------------------------
 # oneline
@@ -145,89 +121,70 @@ sub reset { $ACTIVATING = $INPOD = $DEPTH = 0 } #reset
 
 sub oneline {
 
-# Let the world know if we should
+    # let the world know if we should
+    print STDERR "<$_" if DIFF;
 
-    print STDERR "<$_" if $DIFF;
+    # it's a pod marker
+    if ( m#^=(\w+)# ){
 
-# If this is a pod marker
-#  If we're going back to source
-#   Close the scope if we were activating code
-#   Reset all parameters
-
-    if (m#^=(\w+)#){
-        if ($1 eq 'cut') {
-            $_ = $ACTIVATING ? "}$/" : $/;
+        # going back to source
+        if ( $1 eq 'cut' ) {
+            $_= $ACTIVATING ? "}$/" : $/;
             &reset;
-
-#  Elseif we're at the start of possibly activating source
-#   If this is a pod marker that seems to have our special meaning
-#    If global activation or this specific one
-#     Open new scope (possibly closing old one)
-#     Set activating flag
-#     Reset that we're inside normal pod flag
-
-        } elsif ($1 eq 'begin') {
-            if (m#^=begin\s+([A-Z_0-9]+)\b#) {
-                if ($ALL or $ENV{$1}) {
-                    $_ = $ACTIVATING ? "}{$/" : "{;$/";
-                    $ACTIVATING = 1;
-                    $INPOD = 0;
-
-#    Else (not activating this time)
-#     Close scope if we were activated already
-#     Reset acticating flag
-#     Set flag that we're inside normal pod now
-
-                } else {
-                    $_ = $ACTIVATING ? "}$/" : $/;
-                    $ACTIVATING = 0;
-                    $INPOD = 1;
-                }
-
-#   Else (normal begin of pod)
-#    Lose the line
-#    Set flag that we're inside normal pod now
-
-            } else {
-                $_ = $/;
-                $INPOD = 1;
-            }
-
-#  Elseif we're at the end of a possible activating section
-#   Close scope if we we're activating
-#   Reset activating flag
-#   Set flag that we're in normal pod now
-
-        } elsif ($1 eq 'end') {
-            $_ = $ACTIVATING ? "}$/" : $/;
-            $ACTIVATING = 0;
-            $INPOD = 1;
-
-#  Else (any other pod directive)
-#   Reset the line
-#   Set flag that we're in normal pod now
-
-        } else {
-            $_ = $/;
-            $INPOD = 1;
         }
 
-# Elseif we're already inside normal pod
-#  Lose the line
+        # beginning potentially special pod section
+        elsif ( $1 eq 'begin' ) {
+            if ( m#^=begin\s+([A-Z_0-9]+)\b# ) {
 
-    } elsif ($INPOD) {
-        $_ = $/;
+                # activating
+                if ( $ALL or $ENV{$1} ) {
+                    $_= $ACTIVATING ? "}{$/" : "{;$/";
+                    $ACTIVATING= 1;
+                    $INPOD=      0;
+                }
 
-# Elseif (inside code) and looks like a comment line that we need to handle
-#  Make it a normal source line if we should
+                # not activating now
+                else {
+                    $_= $ACTIVATING ? "}$/" : $/;
+                    $ACTIVATING= 0;
+                    $INPOD=      1;
+                }
+            }
 
-    } elsif (m/^#\s+([A-Z_0-9]+)\b/) {
+            # normal begin of pod
+            else {
+                $_= $/;
+                $INPOD= 1;
+            }
+        }
+
+        # at the end of a possibly activated section
+        elsif ( $1 eq 'end' ) {
+            $_ = $ACTIVATING ? "}$/" : $/;
+            $ACTIVATING= 0;
+            $INPOD=      1;
+        }
+
+        # it's another pod directive
+        else {
+            $_= $/;
+            $INPOD= 1;
+        }
+    }
+
+    # already inside pod
+    elsif ($INPOD) {
+        $_= $/;
+    }
+
+    # looks like comment, make it normal line if so indicated
+    elsif ( m/^#\s+([A-Z_0-9]+)\b/ ) {
          s/^#\s+(?:[A-Z_0-9]+)\b// if $ENV{$1};
     }
 
-# Let the world know if we should
-
-    print STDERR ">$_" if $DIFF;
+    # let the world know if we should
+    print STDERR ">$_" if DIFF;
 } #oneline
 
 #---------------------------------------------------------------------------
@@ -240,50 +197,48 @@ sub oneline {
 
 sub import {
 
-# Warn if we're being called from source (unless it's from the test-suite)
-
+    # being called from source (unless it's from the test-suite)
     warn "The '".
           __PACKAGE__.
           "' pragma is not supposed to be called from source\n"
-           if ((caller)[2]) and ($_[0] ne '_testing_' and !shift);
+           if ( (caller)[2] ) and ( $_[0] ne '_testing_' and !shift );
 
-# Lose the class
-# Initialize the ignored list
-# Loop for all parameters
-#  If it is the "all" flag
-#   Set the all flag
-#  Elsif it is the "selected" flag
-#   Reset the all flag
-#  Elsif it is all uppercase
-#   Set the environment variable
-#  Else
-#   Add to ignored list
-# List any ignored parameters
-
+    # lose the class
     shift;
+
+    # check all parameters
     my @ignored;
     foreach (@_) {
-        if (m#^:?all$#) {
-            $ALL = 1;
-        } elsif (m#^:?selected$#) {
-            $ALL = 0;
-        } elsif (/^[A-Z_0-9]+$/) {
-            $ENV{$_} = 1;
-        } else {
-            push @ignored,$_;
+        # it's all
+        if ( m#^:?all$# ) {
+            $ALL= 1;
+        }
+
+        # not all
+        elsif ( m#^:?selected$# ) {
+            $ALL= 0;
+        }
+
+        # looks like an environment var reference
+        elsif ( m#^[A-Z_0-9]+$# ) {
+            $ENV{$_}= 1;
+        }
+
+        # huh?
+        else {
+            push @ignored, $_;
         }
     }
+
+    # huh?
     warn "Ignored parameters: @ignored\n" if @ignored;
 
-# Make sure we start with a clean slate
-# Add a filter for the caller script which
-#  If there is a line
-#   Process it
-#  Returns the status, $_ is set with what we want to give back
-
+    # make sure we start with a clean slate
     &reset;
-    Filter::Util::Call::filter_add( sub {
-        if (($STATUS = Filter::Util::Call::filter_read()) > 0) {
+
+    # set up source filter
+    return Filter::Util::Call::filter_add( sub {
+        if ( ( $STATUS= Filter::Util::Call::filter_read() ) > 0 ) {
             &oneline;
         }
         $STATUS;
@@ -333,6 +288,10 @@ ifdef - conditionally enable text within pod sections as code
 
   ======================================================================
 
+=head1 VERSION
+
+This documentation describes version 0.08.
+
 =head1 DESCRIPTION
 
 The "ifdef" pragma allows a developer to add sections of code that will be
@@ -348,11 +307,11 @@ If a =begin pod section is considered for replacement, then a scope is
 created around that pod section so that there is no interference with any
 of the code around it.  For example:
 
- my $foo = 2;
+ my $foo= 2;
 
  =begin DEBUGGING
 
- my $foo = 1;
+ my $foo= 1;
  warn "debug foo = $foo\n";
 
  =cut
@@ -361,11 +320,11 @@ of the code around it.  For example:
 
 is converted on the fly (before Perl compiles it) to:
 
- my $foo = 2;
+ my $foo= 2;
 
  {
 
- my $foo = 1;
+ my $foo= 1;
  warn "foo = $foo\n";
 
  }
@@ -432,7 +391,7 @@ modules are welcomed.
 
 =head2 Doesn't seem to work on mod_perl
 
-Unfortunately, there still seem to be problems with getting this moduled to
+Unfortunately, there still seem to be problems with getting this module to
 work reliably under mod_perl.
 
 =head2 API FOR AUTOLOADING MODULES
@@ -491,12 +450,17 @@ there are any ratings for this module).  If you like this module, or otherwise
 would like to have your opinion known, you can add your rating of this module
 at L<http://cpanratings.perl.org/rate/?distribution=ifdef>.
 
-=head1 CREDITS
+=head1 ACKNOWLEDGEMENTS
 
 Nick Kostirya for the idea of activating single line comments.
 
 Konstantin Tokar for pointing out problems with empty code code blocks and
 inline comments when the "all" flag was specified.  And providing patches!
+
+=head1 RELATED MODULES
+
+It would appear that Damian Conway's L<Smart::Comments> is scratching the
+same itch I had when I implemented this module a long time ago.
 
 =head1 AUTHOR
 
@@ -506,7 +470,7 @@ Please report bugs to <perlbugs@dijkmat.nl>.
 
 =head1 COPYRIGHT
 
-Copyright (c) 2004 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
+Copyright (c) 2004, 2005, 2012 Elizabeth Mattijsen <liz@dijkmat.nl>. All rights
 reserved.  This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
 

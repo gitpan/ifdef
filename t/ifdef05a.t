@@ -25,7 +25,7 @@ my $original = <<'EOD';
 =begin DEBUGGING
 EOD
 
-foreach my $prefix ('') {
+foreach my $prefix (':') {
     ifdef->import( '_testing_', $prefix.'all' );
     is( ifdef::process( $original ),<<'EOD',"Check process output ${prefix}all" );
 {;
