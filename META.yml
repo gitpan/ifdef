@@ -20,4 +20,4 @@ no_index:
 requires:
   Filter::Util::Call: 0
   IO::File: 0
-version: 0.08
+version: 0.09

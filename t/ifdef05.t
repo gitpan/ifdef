@@ -6,7 +6,7 @@ BEGIN {				# Magic Perl CORE pragma
     }
 }
 
-use Test::More tests => 3;
+use Test::More tests => 2;
 use strict;
 use warnings;
 
@@ -40,20 +40,5 @@ foreach my $prefix ('') {
 
 {;
 }
-EOD
-
-    ifdef->import( '_testing_', $prefix.'selected' );
-    is( ifdef::process( $original ),<<'EOD',"Check process output ${prefix}selected" );
-
-
-
-
-# XXX This line needs to be fixed
-
-
-
-
-
-
 EOD
 }

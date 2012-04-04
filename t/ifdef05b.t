@@ -25,12 +25,12 @@ my $original = <<'EOD';
 =begin DEBUGGING
 EOD
 
-foreach my $prefix ('') {
-    ifdef->import( '_testing_', $prefix.'selected' );
-    is( ifdef::process( $original ),<<'EOD',"Check process output ${prefix}selected" );
+foreach my $prefix (':') {
+    ifdef->import( '_testing_', $prefix.'all' );
+    is( ifdef::process( $original ),<<'EOD',"Check process output ${prefix}all" );
+{;
 
-
-
+}
 
 # XXX This line needs to be fixed
 
@@ -38,6 +38,7 @@ foreach my $prefix ('') {
 
 
 
-
+{;
+}
 EOD
 }

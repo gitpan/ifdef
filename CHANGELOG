@@ -1,3 +1,7 @@
+0.09	4 April 2012
+	Change in the test-suite so that tests should also run ok on Windows
+	with Strawberry Perl.
+
 0.08    31 March 2012
 	Brought code up to current code esthetics standards.  Fixed bug in
 	test-suite that was causing segfault.  Bug fixed by moving tests to
